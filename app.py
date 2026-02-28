@@ -33,8 +33,8 @@ from gtts import gTTS
 # 1. KNOWLEDGE BASE CONFIGURATION
 # ============================================================
 # Chunking parameters for building the knowledge base
-CHUNK_SIZE = 1000          # Number of characters per chunk
-CHUNK_OVERLAP = 200        # Overlap between consecutive chunks
+CHUNK_SIZE = 500           # Number of characters per chunk (smaller = more precise retrieval)
+CHUNK_OVERLAP = 50         # Overlap between consecutive chunks
 CHUNK_SEPARATOR = "\n"     # Separator used to split text
 
 # Embedding model for vectorizing text chunks
@@ -42,7 +42,7 @@ EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DEVICE = "cpu"
 
 # Number of relevant chunks to retrieve per query
-RETRIEVAL_TOP_K = 4
+RETRIEVAL_TOP_K = 3
 
 # Local path to persist the FAISS vector store
 VECTORSTORE_PERSIST_DIR = "faiss_knowledge_base"
@@ -94,7 +94,7 @@ SYSTEM_PROMPT = (
 )
 
 # Default generation parameters (configurable via sidebar)
-DEFAULT_TEMPERATURE = 0.3   # Controls randomness (0.0 = deterministic, 1.0 = creative)
+DEFAULT_TEMPERATURE = 0.2   # Controls randomness (0.0 = deterministic, 1.0 = creative)
 DEFAULT_TOP_P = 0.95        # Nucleus sampling threshold
 DEFAULT_MAX_TOKENS = 2048   # Maximum output tokens
 
@@ -250,35 +250,61 @@ def build_rag_prompt(question, context, chat_history):
     return prompt
 
 
+def stream_response(client, model_id, system_prompt, user_prompt, temperature, top_p, max_tokens):
+    """Stream response from Groq for typing animation effect."""
+    stream = client.chat.completions.create(
+        model=model_id,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        stream=True,
+    )
+    for chunk in stream:
+        if chunk.choices[0].delta.content is not None:
+            yield chunk.choices[0].delta.content
+
+
 def handle_question(question):
     """Process user question through the full RAG pipeline: retrieve → prompt → generate."""
     vectorstore = st.session_state.vectorstore
     client = st.session_state.groq_client
 
     # RAG Step 1: Retrieve relevant context from vector DB knowledge base
-    context = get_relevant_context(vectorstore, question, k=st.session_state.retrieval_k)
+    with st.spinner("🔍 Searching knowledge base..."):
+        context = get_relevant_context(vectorstore, question, k=st.session_state.retrieval_k)
 
     # RAG Step 2: Build the augmented prompt
     prompt = build_rag_prompt(question, context, st.session_state.chat_history)
 
-    # RAG Step 3: Generate response using Groq (with retry for rate limits)
+    # Display user message immediately
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(question)
+
+    # RAG Step 3: Generate response with typing animation (streaming)
     answer = None
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            with st.spinner("Generating answer..." if attempt == 0 else f"Rate limited — retrying ({attempt}/{max_retries})..."):
-                response = client.chat.completions.create(
-                    model=st.session_state.selected_model_id,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=st.session_state.temperature,
-                    top_p=st.session_state.top_p,
-                    max_tokens=st.session_state.max_tokens,
+            with st.chat_message("assistant", avatar="🎓"):
+                with st.spinner("Thinking..."):
+                    # Small delay to show spinner before streaming starts
+                    pass
+                answer = st.write_stream(
+                    stream_response(
+                        client,
+                        st.session_state.selected_model_id,
+                        SYSTEM_PROMPT,
+                        prompt,
+                        st.session_state.temperature,
+                        st.session_state.top_p,
+                        st.session_state.max_tokens,
+                    )
                 )
-                answer = response.choices[0].message.content
-                break
+            break
         except Exception as e:
             error_msg = str(e)
             if "429" in error_msg or "rate_limit" in error_msg.lower() or "quota" in error_msg.lower():
@@ -308,21 +334,14 @@ def handle_question(question):
         return
 
     # Update chat history
-    st.session_state.chat_history.append(("User", question))
-    st.session_state.chat_history.append(("Bot", answer))
+    st.session_state.chat_history.append(("user", question))
+    st.session_state.chat_history.append(("assistant", answer))
 
     # Generate TTS for the bot answer if voice is enabled
     if st.session_state.get("voice_output_enabled", False):
         tts_audio = text_to_speech(answer)
         if tts_audio:
             st.session_state.last_tts_audio = tts_audio
-
-    # Display full chat history
-    for role, text in st.session_state.chat_history:
-        if role == "User":
-            st.write(user_template.replace("{{MSG}}", text), unsafe_allow_html=True)
-        else:
-            st.write(bot_template.replace("{{MSG}}", text), unsafe_allow_html=True)
 
 
 # ============================================================
@@ -568,13 +587,15 @@ def main():
             unsafe_allow_html=True
         )
 
-    # Show existing chat history
+    # Show existing chat history using st.chat_message
     if st.session_state.chat_history:
         for role, text in st.session_state.chat_history:
-            if role == "User":
-                st.write(user_template.replace("{{MSG}}", text), unsafe_allow_html=True)
+            if role == "user":
+                with st.chat_message("user", avatar="👤"):
+                    st.markdown(text)
             else:
-                st.write(bot_template.replace("{{MSG}}", text), unsafe_allow_html=True)
+                with st.chat_message("assistant", avatar="🎓"):
+                    st.markdown(text)
 
     # ---- Voice Input ----
     st.markdown("---")

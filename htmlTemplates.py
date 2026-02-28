@@ -172,53 +172,35 @@ css = '''
     margin-top: 0.5rem;
 }
 
-/* ---- Chat Messages ---- */
-.chat-message {
-    padding: 1rem 1.2rem;
+/* ---- Chat Messages (st.chat_message styling) ---- */
+[data-testid="stChatMessage"] {
     border-radius: 12px;
-    margin-bottom: 0.8rem;
-    display: flex;
-    align-items: flex-start;
+    margin-bottom: 0.5rem;
     animation: fadeIn 0.3s ease;
+    padding: 0.8rem 1rem;
 }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.chat-message.user {
+/* User messages */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
     background: linear-gradient(135deg, #2b313e 0%, #343b4a 100%);
     border-left: 3px solid #667eea;
 }
-.chat-message.bot {
+/* Assistant messages */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
     background: linear-gradient(135deg, #3a3f52 0%, #475063 100%);
     border-left: 3px solid #2ecc71;
 }
-.chat-message .avatar {
-    width: 40px;
-    min-width: 40px;
-    margin-right: 1rem;
-}
-.chat-message.user .avatar {
-    order: 2;
-    margin-right: 0;
-    margin-left: 1rem;
-}
-.chat-message .avatar img {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    object-fit: cover;
-}
-.chat-message .message {
-    flex: 1;
-    padding: 0;
+[data-testid="stChatMessage"] p {
     color: #e8e8e8;
     font-size: 0.95rem;
-    line-height: 1.6;
+    line-height: 1.7;
 }
-.chat-message.user .message {
-    text-align: right;
-    color: #c8c8e8;
+/* Streaming cursor blink */
+[data-testid="stChatMessage"] .stMarkdown {
+    color: #e8e8e8;
 }
 
 /* ---- Voice Controls ---- */
