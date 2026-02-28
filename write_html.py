@@ -1,4 +1,7 @@
-css = '''
+"""Helper: writes full htmlTemplates.py with ChatGPT-style dark UI"""
+import os
+
+HTML_CONTENT = r"""css = '''
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -207,3 +210,9 @@ border-radius:14px;background:#2f2f2f;border:1px solid #3a3a3a;margin-bottom:0.4
     <div style="color:#ececec;font-size:0.95rem;line-height:1.75;">{{MSG}}</div>
 </div>
 '''
+"""
+
+with open(os.path.join(os.path.dirname(__file__), "htmlTemplates.py"), "w", encoding="utf-8") as f:
+    f.write(HTML_CONTENT)
+
+print(f"htmlTemplates.py written: {len(HTML_CONTENT.splitlines())} lines")

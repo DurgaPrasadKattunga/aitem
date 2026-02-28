@@ -28,9 +28,15 @@ from langchain_community.vectorstores import FAISS
 from groq import Groq
 from htmlTemplates import css, bot_template, user_template
 import speech_recognition as sr
-import pyttsx3
-from pdf2image import convert_from_bytes
-import pytesseract
+from gtts import gTTS
+
+# OCR support (optional — install poppler + pytesseract to enable)
+try:
+    from pdf2image import convert_from_bytes
+    import pytesseract
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
 
 # ============================================================
 # 1. KNOWLEDGE BASE CONFIGURATION
@@ -68,7 +74,35 @@ DEFAULT_MODEL = "Llama 3.3 70B"
 # System prompt — strict academic examination explainer
 SYSTEM_PROMPT = (
     "You are an Education Examination & Evaluation Process Assistant.\n\n"
-    "Your purpose is to clearly explain:\n"
+    "=== STRICT DOCUMENT-GROUNDING RULES (HIGHEST PRIORITY) ===\n"
+    "1. You MUST answer ONLY using information that is EXPLICITLY and LITERALLY present "
+    "in the RETRIEVED DOCUMENT CONTEXT provided to you.\n"
+    "2. INACCURATE / OUT-OF-RANGE VALUES: If the document defines a valid range or set "
+    "of permitted values for something (e.g., marks 0\u2013100, specific grade letters, "
+    "defined attendance percentages) AND the user asks about a value that FALLS OUTSIDE "
+    "or is INCONSISTENT with that defined range, you MUST respond EXACTLY with:\n"
+    "   \"\u274c Inaccurate value: According to the uploaded document, [topic] must be "
+    "in the range [valid range / permitted values from the document]. "
+    "The value you mentioned ([user's value]) is outside this defined range and is therefore invalid.\"\n"
+    "   Fill in [topic], [valid range], and [user's value] with the actual values from "
+    "the document and the user's query.\n"
+    "   EXAMPLE: Document defines grades for marks 0\u2013100. User asks about 101 marks.\n"
+    "   Correct response: \"\u274c Inaccurate value: According to the uploaded document, "
+    "marks must be in the range 0\u2013100. The value you mentioned (101) is outside this "
+    "defined range and is therefore invalid.\"\n"
+    "3. MISSING INFORMATION: If the user's question asks about a value, scenario, or case "
+    "that is simply NOT mentioned or defined anywhere in the document context, "
+    "you MUST respond EXACTLY with:\n"
+    "   \"\u26a0\ufe0f This information is not available in the uploaded document(s). "
+    "Please refer to your institution's official regulations for this specific query.\"\n"
+    "4. You MUST NOT infer, extrapolate, calculate, or assume any information "
+    "beyond what is explicitly written in the context.\n"
+    "5. You MUST NOT use your general training knowledge to fill gaps. "
+    "If it is not in the document, it does not exist for you.\n"
+    "6. Partial answers are not allowed. If only part of the question is covered "
+    "in the document, answer only that part and explicitly state what is NOT covered.\n\n"
+    "=== SCOPE ===\n"
+    "Your purpose is to explain (from the document only):\n"
     "- Examination patterns and schedules\n"
     "- Internal and external evaluation methods\n"
     "- Grading systems (CGPA, GPA, letter grades, percentage)\n"
@@ -77,27 +111,25 @@ SYSTEM_PROMPT = (
     "- Attendance rules and eligibility criteria\n"
     "- Hall ticket and registration procedures\n"
     "- Result publication and transcript processes\n\n"
-    "You MUST:\n"
-    "- Answer in simple, student-friendly language\n"
-    "- Structure answers with clear headings, bullet points, or numbered steps\n"
-    "- Base your answer ONLY on the provided document context\n"
-    "- If the context does not contain the answer, clearly state that\n"
+    "=== RESPONSE STYLE ===\n"
+    "- Use simple, student-friendly language\n"
+    "- Use clear headings, bullet points, or numbered steps\n"
     "- Be encouraging and supportive in tone\n\n"
-    "You must NEVER:\n"
-    "- Predict or estimate grades\n"
-    "- Solve exam questions or provide model answers\n"
-    "- Provide personal academic advice\n"
-    "- Generate answers to exam papers or assignments\n"
-    "- Encourage or assist with any form of academic dishonesty\n"
-    "- Discuss topics outside examination & evaluation processes\n\n"
-    "If a user asks anything outside examination process explanation, "
-    "politely refuse and remind them of your scope: "
-    "'I can only help explain examination and evaluation processes. "
-    "Please ask about exam patterns, grading, revaluation, or similar topics.'\n"
+    "=== ABSOLUTE PROHIBITIONS ===\n"
+    "- NEVER predict, estimate, or calculate grades or marks\n"
+    "- NEVER answer questions about values/scenarios not present in the document\n"
+    "- NEVER solve exam questions or provide model answers\n"
+    "- NEVER assist with academic dishonesty\n"
+    "- NEVER discuss topics outside examination & evaluation processes\n"
+    "- NEVER use knowledge from outside the provided document context\n\n"
+    "If a user asks anything outside examination process explanation, reply:\n"
+    "'I can only help explain examination and evaluation processes as described "
+    "in the uploaded documents. Please ask about exam patterns, grading, "
+    "revaluation, or similar topics.'\n"
 )
 
 # Default generation parameters (configurable via sidebar)
-DEFAULT_TEMPERATURE = 0.2   # Controls randomness (0.0 = deterministic, 1.0 = creative)
+DEFAULT_TEMPERATURE = 0.0   # 0.0 = fully deterministic, prevents hallucination
 DEFAULT_TOP_P = 0.95        # Nucleus sampling threshold
 DEFAULT_MAX_TOKENS = 2048   # Maximum output tokens
 
@@ -121,21 +153,23 @@ def get_pdf_text(docs):
                 pdf_text += page_text
 
         # --- Fallback to OCR if text extraction yielded nothing ---
-        if not pdf_text.strip():
+        if not pdf_text.strip() and OCR_AVAILABLE:
             try:
                 images = convert_from_bytes(pdf_bytes)
                 ocr_text = ""
-                for i, img in enumerate(images):
+                for img in images:
                     page_ocr = pytesseract.image_to_string(img)
                     if page_ocr:
                         ocr_text += page_ocr + "\n"
                 if ocr_text.strip():
                     pdf_text = ocr_text
-                    st.info(f"📷 OCR applied to **{pdf.name}** ({len(images)} page(s)) — scanned/image PDF detected.")
+                    st.info(f"📷 OCR applied to **{pdf.name}** — scanned PDF detected.")
                 else:
                     st.warning(f"⚠️ Could not extract text from **{pdf.name}** (even with OCR).")
             except Exception as e:
                 st.warning(f"⚠️ OCR failed for **{pdf.name}**: {e}")
+        elif not pdf_text.strip():
+            st.warning(f"⚠️ Could not extract text from **{pdf.name}**. Install pytesseract for OCR support.")
 
         text += pdf_text
     return text
@@ -223,22 +257,13 @@ def transcribe_audio(audio_file):
 
 
 def text_to_speech(text):
-    """Convert text to speech using pyttsx3 (offline) and return WAV audio bytes."""
+    """Convert text to speech using gTTS and return MP3 audio bytes."""
     try:
-        engine = pyttsx3.init()
-        engine.setProperty('rate', 175)   # Slightly faster than default (200 is fast)
-        engine.setProperty('volume', 0.9)
-        # Use a temp file to capture audio output
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = tmp.name
-        engine.save_to_file(text, tmp_path)
-        engine.runAndWait()
-        engine.stop()
-        # Read the generated WAV file
-        with open(tmp_path, "rb") as f:
-            audio_bytes = f.read()
-        os.unlink(tmp_path)  # Clean up temp file
-        return audio_bytes
+        tts = gTTS(text=text[:500], lang="en", slow=False)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        buf.seek(0)
+        return buf.read()
     except Exception as e:
         st.warning(f"⚠️ Text-to-speech error: {e}")
         return None
@@ -247,7 +272,7 @@ def text_to_speech(text):
 def get_audio_player_html(audio_bytes):
     """Generate an auto-play HTML audio element from audio bytes."""
     b64_audio = base64.b64encode(audio_bytes).decode()
-    return f'<audio autoplay controls style="width:100%; max-width:400px; height:36px;"><source src="data:audio/wav;base64,{b64_audio}" type="audio/wav"></audio>'
+    return f'<audio autoplay controls style="max-width:360px;height:34px;border-radius:12px;"><source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3"></audio>'
 
 
 # ============================================================
@@ -276,14 +301,28 @@ def build_rag_prompt(question, context, chat_history):
     # Compose the full RAG prompt
     prompt = (
         f"### SYSTEM INSTRUCTIONS ###\n{SYSTEM_PROMPT}\n\n"
-        f"### RETRIEVED DOCUMENT CONTEXT (from Knowledge Base) ###\n{context}\n\n"
+        f"### RETRIEVED DOCUMENT CONTEXT (from Knowledge Base) ###\n"
+        f"--- START OF DOCUMENT CONTEXT ---\n{context}\n--- END OF DOCUMENT CONTEXT ---\n\n"
         f"### CONVERSATION HISTORY ###\n{history_text}\n"
         f"### USER QUESTION ###\n{question}\n\n"
-        "### INSTRUCTIONS ###\n"
-        "Answer the question based ONLY on the provided document context above. "
-        "If the answer is not in the context, clearly state that you don't have "
-        "enough information from the uploaded documents. "
-        "Do not make up information."
+        "### FINAL ANSWERING RULES ###\n"
+        "Step 1: Search ONLY within the DOCUMENT CONTEXT above for information directly "
+        "relevant to the question.\n"
+        "Step 2: CHECK FOR INACCURATE / OUT-OF-RANGE VALUES FIRST: "
+        "If the document defines a valid range or set of permitted values for the topic "
+        "(e.g., marks 0\u2013100, specific attendance thresholds, defined grade letters), "
+        "AND the user's question involves a value that falls OUTSIDE or violates that range, "
+        "respond with EXACTLY:\n"
+        "  '\u274c Inaccurate value: According to the uploaded document, [topic] must be "
+        "in the range [valid range from document]. The value you mentioned ([user value]) "
+        "is outside this defined range and is therefore invalid.'\n"
+        "  (Replace bracketed placeholders with actual values.)\n"
+        "Step 3: CHECK FOR MISSING INFORMATION: If the topic or scenario is simply not "
+        "mentioned anywhere in the document context at all, respond with EXACTLY:\n"
+        "  '\u26a0\ufe0f This specific information is not available in the uploaded document(s). "
+        "Please refer to your institution\'s official regulations.'\n"
+        "Step 4: Do NOT extrapolate, calculate, or infer. NEVER use external knowledge. "
+        "Your ONLY source of truth is the document context above."
     )
     return prompt
 
@@ -393,6 +432,7 @@ def main():
         page_icon="🎓",
         layout="wide"
     )
+
     st.write(css, unsafe_allow_html=True)
 
     # Initialize session state
