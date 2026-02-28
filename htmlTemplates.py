@@ -108,6 +108,70 @@ css = '''
     margin-top: -0.5rem;
 }
 
+/* Welcome Box */
+.welcome-box {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 16px;
+    padding: 1.8rem 2rem;
+    margin: 1.5rem 0;
+    color: #e0e0e0;
+}
+.welcome-box h3 {
+    color: #667eea;
+    font-size: 1.3rem;
+    margin-bottom: 0.8rem;
+}
+.welcome-box p, .welcome-box li {
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: #c8c8e8;
+}
+.welcome-box ol, .welcome-box ul {
+    padding-left: 1.2rem;
+}
+.welcome-box em {
+    color: #8888aa;
+}
+
+/* About Box (sidebar) */
+[data-testid="stSidebar"] .about-box {
+    background: rgba(102, 126, 234, 0.08);
+    border: 1px solid rgba(102, 126, 234, 0.15);
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #b0b0c0 !important;
+}
+
+/* Academic Integrity Notice (sidebar) */
+[data-testid="stSidebar"] .integrity-notice {
+    background: rgba(231, 76, 60, 0.08);
+    border: 1px solid rgba(231, 76, 60, 0.2);
+    border-left: 3px solid #e74c3c;
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: #ccccdd !important;
+}
+[data-testid="stSidebar"] .integrity-notice em {
+    color: #e74c3c !important;
+    font-weight: 600;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 0.8rem 1rem;
+    font-size: 0.8rem;
+    color: #888;
+    background: rgba(30, 41, 59, 0.3);
+    border-radius: 10px;
+    margin-top: 0.5rem;
+}
+
 /* ---- Chat Messages ---- */
 .chat-message {
     padding: 1rem 1.2rem;

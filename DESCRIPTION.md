@@ -1,8 +1,10 @@
-# ChatPDF - RAG-based PDF Q&A with Gemini Flash
+# Education Examination & Evaluation Process Explainer Bot
 
 ## Overview
 
-ChatPDF is a Streamlit-based application that allows users to upload PDF documents and ask questions about their content using Google's Gemini Flash LLM. It uses a Retrieval-Augmented Generation (RAG) pipeline with a FAISS vector database to provide accurate, context-grounded answers restricted to academic exam processes.
+A student-friendly AI assistant that explains academic examination and evaluation processes using uploaded institutional documents. Built with a RAG (Retrieval-Augmented Generation) pipeline, it retrieves relevant information from uploaded PDFs and provides clear, structured answers about exam patterns, grading systems, revaluation, supplementary exams, and more.
+
+**This bot does NOT predict grades, solve exam questions, or provide model answers.**
 
 ---
 
@@ -10,78 +12,72 @@ ChatPDF is a Streamlit-based application that allows users to upload PDF documen
 
 ### 1. Knowledge Base Creation
 
-- **PDF Upload**: Users upload one or more PDFs via the sidebar.
+- **PDF Upload**: Upload exam regulation PDFs, syllabi, or academic handbooks via the sidebar.
 - **Text Extraction**: `PyPDF2` extracts text from every page of each uploaded document.
-- **Text Chunking**: The extracted text is split into overlapping chunks using `CharacterTextSplitter` from LangChain.
-  - **Chunk Size**: 1000 characters (configurable via `CHUNK_SIZE`)
-  - **Chunk Overlap**: 200 characters (configurable via `CHUNK_OVERLAP`)
-- **Embedding Generation**: Each chunk is converted into a vector embedding using the `sentence-transformers/all-MiniLM-L6-v2` model via HuggingFace.
-- **FAISS Vector Store**: Embeddings are indexed in a FAISS vector database for fast similarity search.
-- **Persistence**: The knowledge base can be saved to disk (`faiss_knowledge_base/`) and reloaded later without re-uploading PDFs.
+- **Text Chunking**: Extracted text is split into overlapping chunks using `CharacterTextSplitter`.
+  - **Chunk Size**: 1000 characters
+  - **Chunk Overlap**: 200 characters
+- **Embedding Generation**: Each chunk is vectorized using `sentence-transformers/all-MiniLM-L6-v2` via HuggingFace.
+- **FAISS Vector Store**: Embeddings are indexed in FAISS for fast similarity search.
+- **Persistence**: Knowledge base saved to disk and reloaded without re-uploading.
 
-### 2. LLM Selection
+### 2. LLM Selection (Groq — Free)
 
-- **Model Options**: Users can select from multiple Gemini models via a dropdown in the sidebar:
-  - **Gemini 1.5 Flash** (default) — fast and efficient
-  - **Gemini 1.5 Pro** — higher quality, slower
-  - **Gemini 2.0 Flash** — latest flash model
-- **SDK**: Uses `google-generativeai` Python SDK.
-- **API Key**: Loaded from `GOOGLE_API_KEY` in `.env` file using `python-dotenv`.
+| Model | ID | Description |
+|-------|-----|-------------|
+| **Llama 3.3 70B** (default) | `llama-3.3-70b-versatile` | Best quality |
+| **Llama 3.1 8B** | `llama-3.1-8b-instant` | Fastest |
+| **Mixtral 8x7B** | `mixtral-8x7b-32768` | Best for long context |
+| **Gemma2 9B** | `gemma2-9b-it` | Lightweight |
 
-### 3. Prompt Configuration Parameters
+- **SDK**: Groq Python SDK
+- **API Key**: Loaded from `GROQ_API_KEY` in `.env` file
 
-All generation parameters are **configurable via the sidebar** in real-time:
+### 3. Prompt Configuration
 
-| Parameter         | Default | Range        | Description                                              |
-|-------------------|---------|--------------|----------------------------------------------------------|
-| **Temperature**   | 0.3     | 0.0 – 1.0   | Controls randomness. Lower = focused, Higher = creative   |
-| **Top-K**         | 40      | 1 – 100      | Number of top tokens considered at each generation step    |
-| **Top-P**         | 0.95    | 0.0 – 1.0   | Nucleus sampling cumulative probability threshold          |
-| **Max Tokens**    | 2048    | 256 – 8192   | Maximum number of tokens in the generated response         |
+| Parameter | Default | Range | Description |
+|-----------|---------|-------|-------------|
+| **Temperature** | 0.3 | 0.0–1.0 | Lower = focused, Higher = creative |
+| **Top-P** | 0.95 | 0.0–1.0 | Nucleus sampling threshold |
+| **Max Tokens** | 2048 | 256–8192 | Max response length |
 
-**System Prompt**: A hardcoded system instruction restricts the model to ONLY answer questions about academic exam processes (registration, hall tickets, schedules, evaluation, grading, results, revaluation, supplementary exams, etc.). Any off-topic questions are politely declined.
+**System Prompt** strictly restricts the bot to:
+- Explain examination patterns, grading, evaluation, revaluation, supplementary exams, attendance
+- Answer in simple, student-friendly language with structured formatting
+- **Never** predict grades, solve exam questions, provide model answers, or assist dishonesty
 
 ### 4. RAG with Vector DB
 
-The application implements a full **Retrieval-Augmented Generation (RAG)** pipeline:
+Full Retrieval-Augmented Generation pipeline:
 
-1. **Retrieve**: When a user asks a question, the FAISS vector store performs a similarity search to find the top-K most relevant text chunks from the knowledge base.
-   - **Retrieval Top-K** is configurable (1–10, default 4) via the sidebar.
-2. **Augment**: The retrieved chunks are combined with the system prompt, conversation history, and user question into a structured RAG prompt.
-3. **Generate**: The augmented prompt is sent to the selected Gemini model via `model.generate_content()`, which returns a context-grounded answer.
+1. **Retrieve**: FAISS similarity search finds top-K relevant chunks (configurable 1–10, default 4)
+2. **Augment**: Chunks + system prompt + conversation history + question → structured prompt
+3. **Generate**: Groq LLM generates context-grounded answer
 
-**RAG Prompt Structure**:
-```
-### SYSTEM INSTRUCTIONS ###
-[Academic exam assistant rules]
+### 5. Voice I/O
 
-### RETRIEVED DOCUMENT CONTEXT (from Knowledge Base) ###
-[Chunk 1]: ...
-[Chunk 2]: ...
+- **Voice Input**: Native Streamlit `st.audio_input` mic recorder → Google Speech Recognition transcription
+- **Voice Output**: gTTS text-to-speech — toggle "Read answers aloud" in sidebar
 
-### CONVERSATION HISTORY ###
-User: ...
-Bot: ...
+### 6. Academic Safety & Integrity
 
-### USER QUESTION ###
-[Current question]
-
-### INSTRUCTIONS ###
-Answer based ONLY on the provided context...
-```
+- Strict system prompt guardrails against misuse
+- Academic Integrity Notice displayed in sidebar
+- Bot refuses off-topic, grade prediction, or exam-solving requests
+- Footer disclaimer: informational guidance only
 
 ---
 
 ## File Structure
 
-| File                  | Description                                            |
-|-----------------------|--------------------------------------------------------|
-| `app.py`              | Main Streamlit application with all integrated components |
-| `htmlTemplates.py`    | HTML/CSS templates for the chat UI                      |
-| `.env`                | Environment file containing `GOOGLE_API_KEY`            |
-| `requirements.txt`    | Python dependencies                                     |
-| `DESCRIPTION.md`      | This file — documentation of all components             |
-| `faiss_knowledge_base/` | Persisted FAISS vector store (created after first build) |
+| File | Description |
+|------|-------------|
+| `app.py` | Main Streamlit application |
+| `htmlTemplates.py` | HTML/CSS templates for UI |
+| `.env` | `GROQ_API_KEY` (not committed) |
+| `requirements.txt` | Python dependencies |
+| `DESCRIPTION.md` | This documentation file |
+| `faiss_knowledge_base/` | Persisted FAISS vector store |
 
 ---
 
@@ -89,30 +85,19 @@ Answer based ONLY on the provided context...
 
 ```bash
 pip install -r requirements.txt
+# Create .env with: GROQ_API_KEY=your_key_here
 python -m streamlit run app.py
-```
-
----
-
-## Environment Variables
-
-| Variable          | Description                     |
-|-------------------|---------------------------------|
-| `GOOGLE_API_KEY`  | Google AI API key for Gemini    |
-
-Set in `.env` file at the project root:
-```
-GOOGLE_API_KEY=your_api_key_here
 ```
 
 ---
 
 ## Tech Stack
 
-- **LLM**: Google Gemini 1.5 Flash (via `google-generativeai` SDK)
+- **LLM**: Groq (Llama 3.3 70B Versatile)
 - **Vector DB**: FAISS (`faiss-cpu`)
 - **Embeddings**: HuggingFace `all-MiniLM-L6-v2`
 - **Text Splitting**: LangChain `CharacterTextSplitter`
 - **PDF Parsing**: PyPDF2
+- **Voice**: SpeechRecognition + gTTS
 - **Web UI**: Streamlit
 - **Environment**: python-dotenv

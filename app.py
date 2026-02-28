@@ -1,12 +1,16 @@
 # ============================================================
-# ChatPDF - RAG-based PDF Q&A with Groq (Llama 3.3)
+# Education Examination & Evaluation Process Explainer Bot
 # ============================================================
+# A student-friendly AI assistant that explains academic
+# examination & evaluation processes using uploaded documents.
+#
 # Components:
 #   1. Knowledge Base   - PDF upload, text extraction, chunking
 #   2. LLM Selection    - Groq API (Llama 3.3 70B, Mixtral, Gemma2)
-#   3. Prompt Config    - System prompt, temperature, top_p, max tokens
+#   3. Prompt Config    - Academic system prompt, generation params
 #   4. RAG + Vector DB  - FAISS vector store with HuggingFace embeddings
 #   5. Voice I/O        - Speech-to-text input, text-to-speech output
+#   6. Academic Safety  - Strict guardrails against misuse
 # ============================================================
 
 # ----- Imports -----
@@ -22,7 +26,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from groq import Groq
 from htmlTemplates import css, bot_template, user_template
-from audio_recorder_streamlit import audio_recorder
 import speech_recognition as sr
 from gtts import gTTS
 
@@ -59,18 +62,35 @@ DEFAULT_MODEL = "Llama 3.3 70B"
 # ============================================================
 # 3. PROMPT CONFIGURATION & GENERATION PARAMETERS
 # ============================================================
-# System prompt restricting model to academic exam processes only
+# System prompt — strict academic examination explainer
 SYSTEM_PROMPT = (
-    "You are an academic exam assistant. You must ONLY explain academic exam processes "
-    "such as exam registration, hall tickets, exam schedules, evaluation procedures, "
-    "revaluation, grading systems, result publication, supplementary exams, and related "
-    "academic procedures. If a question is not related to academic exam processes, "
-    "politely decline and remind the user of your scope.\n\n"
-    "Rules:\n"
-    "- Always base your answer on the provided document context.\n"
-    "- If the context does not contain the answer, clearly state that.\n"
-    "- Be concise, accurate, and helpful.\n"
-    "- Use bullet points or numbered lists when appropriate.\n"
+    "You are an Education Examination & Evaluation Process Assistant.\n\n"
+    "Your purpose is to clearly explain:\n"
+    "- Examination patterns and schedules\n"
+    "- Internal and external evaluation methods\n"
+    "- Grading systems (CGPA, GPA, letter grades, percentage)\n"
+    "- Revaluation and recounting processes\n"
+    "- Supplementary and improvement examinations\n"
+    "- Attendance rules and eligibility criteria\n"
+    "- Hall ticket and registration procedures\n"
+    "- Result publication and transcript processes\n\n"
+    "You MUST:\n"
+    "- Answer in simple, student-friendly language\n"
+    "- Structure answers with clear headings, bullet points, or numbered steps\n"
+    "- Base your answer ONLY on the provided document context\n"
+    "- If the context does not contain the answer, clearly state that\n"
+    "- Be encouraging and supportive in tone\n\n"
+    "You must NEVER:\n"
+    "- Predict or estimate grades\n"
+    "- Solve exam questions or provide model answers\n"
+    "- Provide personal academic advice\n"
+    "- Generate answers to exam papers or assignments\n"
+    "- Encourage or assist with any form of academic dishonesty\n"
+    "- Discuss topics outside examination & evaluation processes\n\n"
+    "If a user asks anything outside examination process explanation, "
+    "politely refuse and remind them of your scope: "
+    "'I can only help explain examination and evaluation processes. "
+    "Please ask about exam patterns, grading, revaluation, or similar topics.'\n"
 )
 
 # Default generation parameters (configurable via sidebar)
@@ -155,13 +175,13 @@ def get_groq_client():
 # VOICE I/O FUNCTIONS
 # ============================================================
 
-def transcribe_audio(audio_bytes):
-    """Convert recorded audio bytes to text using SpeechRecognition (Google Web API)."""
+def transcribe_audio(audio_file):
+    """Convert recorded audio to text using SpeechRecognition (Google Web API)."""
     recognizer = sr.Recognizer()
-    # audio_recorder returns WAV bytes
-    audio_io = io.BytesIO(audio_bytes)
     try:
-        with sr.AudioFile(audio_io) as source:
+        # audio_file is a Streamlit UploadedFile (BytesIO-like)
+        audio_file.seek(0)
+        with sr.AudioFile(audio_file) as source:
             audio_data = recognizer.record(source)
         text = recognizer.recognize_google(audio_data)
         return text
@@ -169,6 +189,9 @@ def transcribe_audio(audio_bytes):
         return None
     except sr.RequestError as e:
         st.warning(f"⚠️ Speech recognition service unavailable: {e}")
+        return None
+    except Exception as e:
+        st.warning(f"⚠️ Audio processing error: {e}")
         return None
 
 
@@ -266,7 +289,7 @@ def handle_question(question):
                 else:
                     st.error(
                         "❌ **Rate limit reached.** Please wait a moment and try again.\n\n"
-                        "xAI free tier has rate limits. Try again shortly."
+                        "Free tier has rate limits. Try again shortly."
                     )
                     return
             elif "connection" in error_msg.lower() or "timeout" in error_msg.lower() or "connect" in error_msg.lower():
@@ -308,7 +331,11 @@ def handle_question(question):
 
 def main():
     load_dotenv()
-    st.set_page_config(page_title="ChatPDF - Academic Exam Assistant", page_icon="🎓", layout="wide")
+    st.set_page_config(
+        page_title="Education Examination & Evaluation Process Explainer",
+        page_icon="🎓",
+        layout="wide"
+    )
     st.write(css, unsafe_allow_html=True)
 
     # Initialize session state
@@ -340,20 +367,32 @@ def main():
     # ===== SIDEBAR =====
     with st.sidebar:
         # -- Branding --
-        st.markdown('<div class="sidebar-title">🎓 ChatPDF</div>', unsafe_allow_html=True)
-        st.markdown('<div class="sidebar-subtitle">Academic Exam Assistant</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-title">🎓 Exam Explainer</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-subtitle">Education Examination & Evaluation Process Explainer Bot</div>', unsafe_allow_html=True)
         st.markdown("---")
 
-        # ---- STEP 1: Upload Documents ----
-        st.markdown('<div class="section-header">📄 Step 1 — Upload Documents</div>', unsafe_allow_html=True)
+        # ---- 📘 About This Bot ----
+        st.markdown('<div class="section-header">📘 About This Bot</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="about-box">'
+            'This bot helps students understand <b>examination and evaluation processes</b> '
+            'from uploaded academic documents. Ask about grading, revaluation, '
+            'supplementary exams, attendance rules, and more.'
+            '</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown("---")
+
+        # ---- STEP 1: Upload Academic Documents ----
+        st.markdown('<div class="section-header">📄 Step 1 — Upload Academic Documents</div>', unsafe_allow_html=True)
         docs = st.file_uploader(
-            "Drop your PDFs here",
+            "Upload exam regulation PDFs, syllabi, or academic handbooks",
             accept_multiple_files=True,
             type=["pdf"],
             label_visibility="collapsed"
         )
         if docs:
-            st.caption(f"📎 {len(docs)} file(s) selected")
+            st.caption(f"📎 {len(docs)} document(s) selected")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -363,9 +402,9 @@ def main():
 
         if build_btn:
             if not docs:
-                st.warning("Upload at least one PDF first.")
+                st.warning("📄 Please upload at least one academic PDF first.")
             else:
-                with st.spinner("⏳ Building knowledge base..."):
+                with st.spinner("⏳ Building Academic Knowledge Base..."):
                     raw_text = get_pdf_text(docs)
                     if not raw_text.strip():
                         st.error("Could not extract text from the PDFs.")
@@ -376,21 +415,24 @@ def main():
                         save_vectorstore(vectorstore)
                         st.session_state.kb_doc_count = len(docs)
                         st.session_state.kb_chunk_count = len(text_chunks)
-                        st.success(f"✅ {len(docs)} PDF(s) → {len(text_chunks)} chunks")
+                        st.success(
+                            f"📚 **Academic Knowledge Base Successfully Built!**\n\n"
+                            f"{len(docs)} document(s) processed into {len(text_chunks)} knowledge chunks."
+                        )
 
         if load_btn:
-            with st.spinner("Loading saved knowledge base..."):
+            with st.spinner("Loading saved academic knowledge base..."):
                 vectorstore = load_vectorstore()
                 if vectorstore:
                     st.session_state.vectorstore = vectorstore
-                    st.success("✅ Knowledge base loaded!")
+                    st.success("📚 Academic Knowledge Base Loaded Successfully!")
                 else:
-                    st.warning("No saved knowledge base found.")
+                    st.warning("No saved knowledge base found. Please upload and build first.")
 
         st.markdown("---")
 
-        # ---- STEP 2: Choose Model ----
-        st.markdown('<div class="section-header">🤖 Step 2 — Choose Model</div>', unsafe_allow_html=True)
+        # ---- STEP 2: Choose AI Model ----
+        st.markdown('<div class="section-header">🤖 Step 2 — Choose AI Model</div>', unsafe_allow_html=True)
         selected_model_name = st.selectbox(
             "Model",
             list(AVAILABLE_MODELS.keys()),
@@ -401,7 +443,7 @@ def main():
 
         st.markdown("---")
 
-        # ---- STEP 3: Tune Settings (collapsible) ----
+        # ---- STEP 3: Settings (collapsible) ----
         st.markdown('<div class="section-header">⚙️ Step 3 — Settings</div>', unsafe_allow_html=True)
         with st.expander("Generation Parameters", expanded=False):
             temperature = st.slider("Temperature", 0.0, 1.0, DEFAULT_TEMPERATURE, 0.05,
@@ -424,13 +466,22 @@ def main():
 
         st.markdown("---")
 
-        # ---- Status Dashboard ----
+        # ---- STEP 4: Voice Settings ----
+        st.markdown('<div class="section-header">🎙️ Step 4 — Voice</div>', unsafe_allow_html=True)
+        st.session_state.voice_output_enabled = st.toggle(
+            "🔊 Read answers aloud",
+            value=st.session_state.voice_output_enabled,
+            help="Enable text-to-speech for bot responses"
+        )
+
+        st.markdown("---")
+
+        # ---- 📊 Status Dashboard ----
         st.markdown('<div class="section-header">📊 Status</div>', unsafe_allow_html=True)
 
-        # Knowledge base status
         if st.session_state.vectorstore is not None:
             st.markdown(
-                '<span class="status-badge status-ready">● Knowledge Base Ready</span>',
+                '<span class="status-badge status-ready">● Academic Knowledge Base Ready</span>',
                 unsafe_allow_html=True
             )
             if st.session_state.kb_doc_count > 0:
@@ -447,7 +498,7 @@ def main():
                 )
         else:
             st.markdown(
-                '<span class="status-badge status-waiting">○ No Knowledge Base</span>',
+                '<span class="status-badge status-waiting">○ No Knowledge Base — Upload PDFs above</span>',
                 unsafe_allow_html=True
             )
 
@@ -465,12 +516,19 @@ def main():
 
         st.markdown("---")
 
-        # ---- STEP 4: Voice Settings ----
-        st.markdown('<div class="section-header">🎙️ Step 4 — Voice</div>', unsafe_allow_html=True)
-        st.session_state.voice_output_enabled = st.toggle(
-            "🔊 Read answers aloud",
-            value=st.session_state.voice_output_enabled,
-            help="Enable text-to-speech for bot responses"
+        # ---- ⚖️ Academic Integrity Notice ----
+        st.markdown('<div class="section-header">⚖️ Academic Integrity Notice</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="integrity-notice">'
+            '⚠️ This bot is designed <b>only to explain</b> examination and evaluation processes. '
+            'It will <b>not</b>:<br>'
+            '• Predict or estimate grades<br>'
+            '• Solve exam questions<br>'
+            '• Provide model answers<br>'
+            '• Assist with academic dishonesty<br><br>'
+            '<em>Use responsibly and ethically.</em>'
+            '</div>',
+            unsafe_allow_html=True
         )
 
         st.markdown("")
@@ -482,11 +540,33 @@ def main():
     # ===== MAIN CHAT AREA =====
     st.markdown(
         '<div class="main-header">'
-        '<h1>🎓 Academic Exam Assistant</h1>'
-        '<p>Upload your exam PDFs and ask anything about academic exam processes</p>'
+        '<h1>🎓 Education Examination & Evaluation Process Explainer</h1>'
+        '<p>Upload academic documents and ask about exam patterns, grading, revaluation, and more</p>'
         '</div>',
         unsafe_allow_html=True
     )
+
+    # Show welcome message when no KB and no chat
+    if st.session_state.vectorstore is None and not st.session_state.chat_history:
+        st.markdown(
+            '<div class="welcome-box">'
+            '<h3>👋 Welcome, Student!</h3>'
+            '<p>To get started:</p>'
+            '<ol>'
+            '<li>📄 <b>Upload</b> your exam regulation PDFs or academic handbooks in the sidebar</li>'
+            '<li>🔨 <b>Build</b> the Academic Knowledge Base</li>'
+            '<li>💬 <b>Ask</b> about examination patterns, grading systems, revaluation, and more</li>'
+            '</ol>'
+            '<p><em>Example questions you can ask:</em></p>'
+            '<ul>'
+            '<li>"How does the grading system work?"</li>'
+            '<li>"What is the revaluation process?"</li>'
+            '<li>"What are the attendance requirements for eligibility?"</li>'
+            '<li>"How do supplementary exams work?"</li>'
+            '</ul>'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
     # Show existing chat history
     if st.session_state.chat_history:
@@ -496,39 +576,27 @@ def main():
             else:
                 st.write(bot_template.replace("{{MSG}}", text), unsafe_allow_html=True)
 
-    # ---- Voice & Text Input Area ----
+    # ---- Voice Input ----
     st.markdown("---")
-    voice_col, text_col = st.columns([1, 11])
+    st.markdown("🎙️ **Voice Input** — Record a question using your microphone:")
+    audio_file = st.audio_input("Record your question", key="voice_input")
 
-    # Voice input: mic recorder
-    with voice_col:
-        audio_bytes = audio_recorder(
-            text="",
-            recording_color="#e74c3c",
-            neutral_color="#667eea",
-            icon_size="2x",
-            pause_threshold=2.0,
-            key="voice_recorder"
-        )
-
-    # Process voice input
     voice_question = None
-    if audio_bytes:
-        # Only process if this is new audio (not the same from previous run)
-        audio_hash = hash(audio_bytes)
-        if st.session_state.get("last_audio_hash") != audio_hash:
-            st.session_state.last_audio_hash = audio_hash
+    if audio_file is not None:
+        audio_id = audio_file.file_id
+        if st.session_state.get("last_audio_id") != audio_id:
+            st.session_state.last_audio_id = audio_id
             with st.spinner("🎙️ Transcribing your voice..."):
-                voice_question = transcribe_audio(audio_bytes)
+                voice_question = transcribe_audio(audio_file)
             if voice_question:
-                st.info(f'🎙️ You said: "{voice_question}"')
+                st.success(f'🎙️ You said: "{voice_question}"')
             else:
                 st.warning("Could not understand the audio. Please try again.")
 
-    # Chat text input
+    # ---- Text Input ----
     question = st.chat_input("Ask a question about your documents...")
 
-    # Use voice question if no text input
+    # Use voice question if no typed input
     active_question = question or voice_question
 
     if active_question:
@@ -546,6 +614,17 @@ def main():
                     unsafe_allow_html=True
                 )
                 st.session_state.last_tts_audio = None
+
+    # ===== FOOTER =====
+    st.markdown("---")
+    st.markdown(
+        '<div class="footer">'
+        '📜 <em>This system provides informational guidance only and does not replace '
+        'official university regulations. Always refer to your institution\'s official '
+        'documents for authoritative information.</em>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
 
 if __name__ == '__main__':
