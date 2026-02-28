@@ -1,21 +1,38 @@
 css = '''
 <style>
-/* ---- Global & Sidebar ---- */
+/* ============================================================
+   ChatGPT-Style Dark Theme for Education Exam Explainer Bot
+   ============================================================ */
+
+/* ---- Global Dark Mode ---- */
+.stApp, [data-testid="stAppViewContainer"] {
+    background-color: #212121 !important;
+    color: #ececec !important;
+}
+[data-testid="stMainBlockContainer"] {
+    background-color: #212121 !important;
+}
+[data-testid="stHeader"] {
+    background-color: #212121 !important;
+}
+
+/* ---- Sidebar (dark gradient) ---- */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    background: linear-gradient(180deg, #171717 0%, #1e1e2e 100%);
+    border-right: 1px solid rgba(255,255,255,0.06);
 }
 [data-testid="stSidebar"] * {
-    color: #e0e0e0 !important;
+    color: #d1d1d1 !important;
 }
 [data-testid="stSidebar"] .stSelectbox label,
 [data-testid="stSidebar"] .stSlider label,
 [data-testid="stSidebar"] .stFileUploader label {
     font-size: 0.85rem;
     font-weight: 500;
-    color: #b0b0c0 !important;
+    color: #a0a0b8 !important;
 }
 [data-testid="stSidebar"] hr {
-    border-color: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.06);
 }
 [data-testid="stSidebar"] .sidebar-title {
     font-size: 1.3rem;
@@ -76,31 +93,33 @@ css = '''
 /* Sidebar buttons */
 [data-testid="stSidebar"] .stButton > button {
     width: 100%;
-    border-radius: 8px;
+    border-radius: 10px;
     font-weight: 600;
     font-size: 0.85rem;
-    padding: 0.5rem 1rem;
-    transition: all 0.2s ease;
+    padding: 0.55rem 1rem;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     border: none;
-}
-[data-testid="stSidebar"] .stButton > button:first-of-type {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
+    filter: brightness(1.08);
 }
 
 /* ---- Main Area ---- */
 .main-header {
     text-align: center;
-    padding: 1rem 0 0.5rem 0;
+    padding: 1.2rem 0 0.6rem 0;
 }
 .main-header h1 {
     font-size: 1.8rem;
     font-weight: 700;
-    color: #667eea;
+    background: linear-gradient(135deg, #667eea, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 .main-header p {
     font-size: 0.9rem;
@@ -110,22 +129,25 @@ css = '''
 
 /* Welcome Box */
 .welcome-box {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-    border: 1px solid rgba(102, 126, 234, 0.2);
-    border-radius: 16px;
-    padding: 1.8rem 2rem;
-    margin: 1.5rem 0;
+    background: #2f2f2f;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 2rem 2.2rem;
+    margin: 1.5rem auto;
+    max-width: 720px;
     color: #e0e0e0;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    animation: fadeInUp 0.5s ease;
 }
 .welcome-box h3 {
-    color: #667eea;
+    color: #a78bfa;
     font-size: 1.3rem;
     margin-bottom: 0.8rem;
 }
 .welcome-box p, .welcome-box li {
     font-size: 0.92rem;
     line-height: 1.7;
-    color: #c8c8e8;
+    color: #c8c8d8;
 }
 .welcome-box ol, .welcome-box ul {
     padding-left: 1.2rem;
@@ -166,44 +188,118 @@ css = '''
     text-align: center;
     padding: 0.8rem 1rem;
     font-size: 0.8rem;
-    color: #888;
-    background: rgba(30, 41, 59, 0.3);
-    border-radius: 10px;
+    color: #777;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
     margin-top: 0.5rem;
+    border: 1px solid rgba(255,255,255,0.05);
 }
 
-/* ---- Chat Messages (st.chat_message styling) ---- */
+/* ============================================================
+   Chat Messages — ChatGPT-style rounded bubbles
+   ============================================================ */
 [data-testid="stChatMessage"] {
-    border-radius: 12px;
-    margin-bottom: 0.5rem;
-    animation: fadeIn 0.3s ease;
-    padding: 0.8rem 1rem;
+    border-radius: 18px;
+    margin-bottom: 0.6rem;
+    padding: 1rem 1.2rem;
+    animation: fadeInUp 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: box-shadow 0.2s ease;
 }
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
+[data-testid="stChatMessage"]:hover {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
 }
-/* User messages */
+
+/* User messages — subtle purple accent */
 [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
-    background: linear-gradient(135deg, #2b313e 0%, #343b4a 100%);
+    background: #2f2f2f;
     border-left: 3px solid #667eea;
 }
-/* Assistant messages */
+/* Assistant messages — subtle green accent */
 [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
-    background: linear-gradient(135deg, #3a3f52 0%, #475063 100%);
-    border-left: 3px solid #2ecc71;
+    background: #343541;
+    border-left: 3px solid #10a37f;
 }
+
 [data-testid="stChatMessage"] p {
-    color: #e8e8e8;
+    color: #ececec;
     font-size: 0.95rem;
+    line-height: 1.75;
+}
+[data-testid="stChatMessage"] .stMarkdown {
+    color: #ececec;
+}
+[data-testid="stChatMessage"] li {
+    color: #ececec;
     line-height: 1.7;
 }
-/* Streaming cursor blink */
-[data-testid="stChatMessage"] .stMarkdown {
-    color: #e8e8e8;
+[data-testid="stChatMessage"] strong {
+    color: #ffffff;
+}
+[data-testid="stChatMessage"] code {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.88rem;
+    color: #a78bfa;
+}
+
+/* ---- Chat Input Styling ---- */
+[data-testid="stChatInput"] {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+[data-testid="stChatInput"] textarea {
+    background: #2f2f2f !important;
+    color: #ececec !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+[data-testid="stChatInput"] textarea:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 1px #667eea !important;
+}
+
+/* ---- Thinking / Spinner ---- */
+.thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    color: #888;
+    font-size: 0.9rem;
+}
+.thinking-dots {
+    display: inline-flex;
+    gap: 4px;
+}
+.thinking-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #667eea;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0s; }
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
 }
 
 /* ---- Voice Controls ---- */
+.voice-section {
+    background: #2f2f2f;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 1rem 1.2rem;
+    margin: 0.5rem 0;
+}
 .voice-status {
     display: inline-flex;
     align-items: center;
@@ -216,23 +312,64 @@ css = '''
     color: #667eea;
     margin: 0.3rem 0;
 }
-.voice-status.recording {
-    background: rgba(231, 76, 60, 0.15);
-    color: #e74c3c;
-    animation: pulse 1.2s infinite;
+/* Mic recording animation */
+.mic-recording {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    border-radius: 25px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    animation: micPulse 1.5s ease-in-out infinite;
 }
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
+.mic-recording .mic-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: micDotPulse 1s ease-in-out infinite;
 }
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+@keyframes micDotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.75); }
+}
+
 /* Audio player styling */
 audio {
-    border-radius: 20px;
+    border-radius: 25px;
     margin: 0.5rem 0;
+    filter: invert(0.85) hue-rotate(180deg);
 }
+audio::-webkit-media-controls-panel {
+    background: #2f2f2f;
+}
+
 /* TTS toggle in sidebar */
 [data-testid="stSidebar"] .stToggle label span {
     font-size: 0.85rem !important;
+}
+
+/* ---- Scrollbar (dark) ---- */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #212121;
+}
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }
 </style>
 '''

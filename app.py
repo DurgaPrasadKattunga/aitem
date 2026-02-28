@@ -18,6 +18,7 @@ import os
 import io
 import time
 import base64
+import tempfile
 from dotenv import load_dotenv
 import streamlit as st
 from PyPDF2 import PdfReader
@@ -27,7 +28,7 @@ from langchain_community.vectorstores import FAISS
 from groq import Groq
 from htmlTemplates import css, bot_template, user_template
 import speech_recognition as sr
-from gtts import gTTS
+import pyttsx3
 
 # ============================================================
 # 1. KNOWLEDGE BASE CONFIGURATION
@@ -42,7 +43,7 @@ EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DEVICE = "cpu"
 
 # Number of relevant chunks to retrieve per query
-RETRIEVAL_TOP_K = 3
+RETRIEVAL_TOP_K = 2
 
 # Local path to persist the FAISS vector store
 VECTORSTORE_PERSIST_DIR = "faiss_knowledge_base"
@@ -196,13 +197,22 @@ def transcribe_audio(audio_file):
 
 
 def text_to_speech(text):
-    """Convert text to speech using gTTS and return audio bytes."""
+    """Convert text to speech using pyttsx3 (offline) and return WAV audio bytes."""
     try:
-        tts = gTTS(text=text, lang='en', slow=False)
-        audio_buffer = io.BytesIO()
-        tts.write_to_fp(audio_buffer)
-        audio_buffer.seek(0)
-        return audio_buffer.read()
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 175)   # Slightly faster than default (200 is fast)
+        engine.setProperty('volume', 0.9)
+        # Use a temp file to capture audio output
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        engine.save_to_file(text, tmp_path)
+        engine.runAndWait()
+        engine.stop()
+        # Read the generated WAV file
+        with open(tmp_path, "rb") as f:
+            audio_bytes = f.read()
+        os.unlink(tmp_path)  # Clean up temp file
+        return audio_bytes
     except Exception as e:
         st.warning(f"⚠️ Text-to-speech error: {e}")
         return None
@@ -211,7 +221,7 @@ def text_to_speech(text):
 def get_audio_player_html(audio_bytes):
     """Generate an auto-play HTML audio element from audio bytes."""
     b64_audio = base64.b64encode(audio_bytes).decode()
-    return f'<audio autoplay controls style="width:100%; max-width:400px; height:36px;"><source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3"></audio>'
+    return f'<audio autoplay controls style="width:100%; max-width:400px; height:36px;"><source src="data:audio/wav;base64,{b64_audio}" type="audio/wav"></audio>'
 
 
 # ============================================================
@@ -229,10 +239,12 @@ def get_relevant_context(vectorstore, question, k=RETRIEVAL_TOP_K):
 
 def build_rag_prompt(question, context, chat_history):
     """Build the full RAG prompt combining system prompt, context, history, and question."""
-    # Build chat history string
+    # Build chat history string (trim to last 4 turns = 8 messages for speed)
+    MAX_HISTORY_TURNS = 4
     history_text = ""
     if chat_history:
-        for role, text in chat_history:
+        recent_history = chat_history[-(MAX_HISTORY_TURNS * 2):]
+        for role, text in recent_history:
             history_text += f"{role}: {text}\n"
 
     # Compose the full RAG prompt
@@ -599,16 +611,27 @@ def main():
 
     # ---- Voice Input ----
     st.markdown("---")
-    st.markdown("🎙️ **Voice Input** — Record a question using your microphone:")
-    audio_file = st.audio_input("Record your question", key="voice_input")
+    st.markdown(
+        '<div class="voice-section">'
+        '<strong>🎙️ Voice Input</strong> — Record a question using your microphone'
+        '</div>',
+        unsafe_allow_html=True
+    )
+    audio_file = st.audio_input("Record your question", key="voice_input", label_visibility="collapsed")
 
     voice_question = None
     if audio_file is not None:
         audio_id = audio_file.file_id
         if st.session_state.get("last_audio_id") != audio_id:
             st.session_state.last_audio_id = audio_id
-            with st.spinner("🎙️ Transcribing your voice..."):
-                voice_question = transcribe_audio(audio_file)
+            # Show recording animation while transcribing
+            st.markdown(
+                '<div class="mic-recording">'
+                '<div class="mic-dot"></div> Transcribing your voice...'
+                '</div>',
+                unsafe_allow_html=True
+            )
+            voice_question = transcribe_audio(audio_file)
             if voice_question:
                 st.success(f'🎙️ You said: "{voice_question}"')
             else:
