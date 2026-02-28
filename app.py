@@ -6,11 +6,14 @@
 #   2. LLM Selection    - Groq API (Llama 3.3 70B, Mixtral, Gemma2)
 #   3. Prompt Config    - System prompt, temperature, top_p, max tokens
 #   4. RAG + Vector DB  - FAISS vector store with HuggingFace embeddings
+#   5. Voice I/O        - Speech-to-text input, text-to-speech output
 # ============================================================
 
 # ----- Imports -----
 import os
+import io
 import time
+import base64
 from dotenv import load_dotenv
 import streamlit as st
 from PyPDF2 import PdfReader
@@ -19,6 +22,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from groq import Groq
 from htmlTemplates import css, bot_template, user_template
+from audio_recorder_streamlit import audio_recorder
+import speech_recognition as sr
+from gtts import gTTS
 
 # ============================================================
 # 1. KNOWLEDGE BASE CONFIGURATION
@@ -146,6 +152,46 @@ def get_groq_client():
 
 
 # ============================================================
+# VOICE I/O FUNCTIONS
+# ============================================================
+
+def transcribe_audio(audio_bytes):
+    """Convert recorded audio bytes to text using SpeechRecognition (Google Web API)."""
+    recognizer = sr.Recognizer()
+    # audio_recorder returns WAV bytes
+    audio_io = io.BytesIO(audio_bytes)
+    try:
+        with sr.AudioFile(audio_io) as source:
+            audio_data = recognizer.record(source)
+        text = recognizer.recognize_google(audio_data)
+        return text
+    except sr.UnknownValueError:
+        return None
+    except sr.RequestError as e:
+        st.warning(f"⚠️ Speech recognition service unavailable: {e}")
+        return None
+
+
+def text_to_speech(text):
+    """Convert text to speech using gTTS and return audio bytes."""
+    try:
+        tts = gTTS(text=text, lang='en', slow=False)
+        audio_buffer = io.BytesIO()
+        tts.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
+        return audio_buffer.read()
+    except Exception as e:
+        st.warning(f"⚠️ Text-to-speech error: {e}")
+        return None
+
+
+def get_audio_player_html(audio_bytes):
+    """Generate an auto-play HTML audio element from audio bytes."""
+    b64_audio = base64.b64encode(audio_bytes).decode()
+    return f'<audio autoplay controls style="width:100%; max-width:400px; height:36px;"><source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3"></audio>'
+
+
+# ============================================================
 # RAG - RETRIEVAL AUGMENTED GENERATION
 # ============================================================
 
@@ -242,6 +288,12 @@ def handle_question(question):
     st.session_state.chat_history.append(("User", question))
     st.session_state.chat_history.append(("Bot", answer))
 
+    # Generate TTS for the bot answer if voice is enabled
+    if st.session_state.get("voice_output_enabled", False):
+        tts_audio = text_to_speech(answer)
+        if tts_audio:
+            st.session_state.last_tts_audio = tts_audio
+
     # Display full chat history
     for role, text in st.session_state.chat_history:
         if role == "User":
@@ -280,6 +332,10 @@ def main():
         st.session_state.max_tokens = DEFAULT_MAX_TOKENS
     if "selected_model_id" not in st.session_state:
         st.session_state.selected_model_id = AVAILABLE_MODELS[DEFAULT_MODEL]
+    if "voice_output_enabled" not in st.session_state:
+        st.session_state.voice_output_enabled = True
+    if "last_tts_audio" not in st.session_state:
+        st.session_state.last_tts_audio = None
 
     # ===== SIDEBAR =====
     with st.sidebar:
@@ -407,9 +463,20 @@ def main():
             unsafe_allow_html=True
         )
 
+        st.markdown("---")
+
+        # ---- STEP 4: Voice Settings ----
+        st.markdown('<div class="section-header">🎙️ Step 4 — Voice</div>', unsafe_allow_html=True)
+        st.session_state.voice_output_enabled = st.toggle(
+            "🔊 Read answers aloud",
+            value=st.session_state.voice_output_enabled,
+            help="Enable text-to-speech for bot responses"
+        )
+
         st.markdown("")
         if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.chat_history = []
+            st.session_state.last_tts_audio = None
             st.rerun()
 
     # ===== MAIN CHAT AREA =====
@@ -429,15 +496,56 @@ def main():
             else:
                 st.write(bot_template.replace("{{MSG}}", text), unsafe_allow_html=True)
 
-    # Chat input
+    # ---- Voice & Text Input Area ----
+    st.markdown("---")
+    voice_col, text_col = st.columns([1, 11])
+
+    # Voice input: mic recorder
+    with voice_col:
+        audio_bytes = audio_recorder(
+            text="",
+            recording_color="#e74c3c",
+            neutral_color="#667eea",
+            icon_size="2x",
+            pause_threshold=2.0,
+            key="voice_recorder"
+        )
+
+    # Process voice input
+    voice_question = None
+    if audio_bytes:
+        # Only process if this is new audio (not the same from previous run)
+        audio_hash = hash(audio_bytes)
+        if st.session_state.get("last_audio_hash") != audio_hash:
+            st.session_state.last_audio_hash = audio_hash
+            with st.spinner("🎙️ Transcribing your voice..."):
+                voice_question = transcribe_audio(audio_bytes)
+            if voice_question:
+                st.info(f'🎙️ You said: "{voice_question}"')
+            else:
+                st.warning("Could not understand the audio. Please try again.")
+
+    # Chat text input
     question = st.chat_input("Ask a question about your documents...")
-    if question:
+
+    # Use voice question if no text input
+    active_question = question or voice_question
+
+    if active_question:
         if st.session_state.vectorstore is None:
             st.warning("⚠️ Please upload PDFs and build a knowledge base first (see sidebar).")
         elif st.session_state.groq_client is None:
             st.warning("⚠️ Model not ready. Check your GROQ_API_KEY in the .env file.")
         else:
-            handle_question(question)
+            handle_question(active_question)
+
+            # Auto-play TTS audio if available
+            if st.session_state.get("last_tts_audio"):
+                st.markdown(
+                    get_audio_player_html(st.session_state.last_tts_audio),
+                    unsafe_allow_html=True
+                )
+                st.session_state.last_tts_audio = None
 
 
 if __name__ == '__main__':

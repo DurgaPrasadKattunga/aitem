@@ -156,6 +156,38 @@ css = '''
     text-align: right;
     color: #c8c8e8;
 }
+
+/* ---- Voice Controls ---- */
+.voice-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    margin: 0.3rem 0;
+}
+.voice-status.recording {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+    animation: pulse 1.2s infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+/* Audio player styling */
+audio {
+    border-radius: 20px;
+    margin: 0.5rem 0;
+}
+/* TTS toggle in sidebar */
+[data-testid="stSidebar"] .stToggle label span {
+    font-size: 0.85rem !important;
+}
 </style>
 '''
 
