@@ -14,9 +14,10 @@ A student-friendly AI assistant that explains academic examination and evaluatio
 
 - **PDF Upload**: Upload exam regulation PDFs, syllabi, or academic handbooks via the sidebar.
 - **Text Extraction**: `PyPDF2` extracts text from every page of each uploaded document.
+- **OCR Fallback**: If a PDF is scanned/image-based (no extractable text), `pdf2image` converts pages to images and `pytesseract` performs OCR to extract text. Works for both text PDFs and image PDFs.
 - **Text Chunking**: Extracted text is split into overlapping chunks using `CharacterTextSplitter`.
-  - **Chunk Size**: 1000 characters
-  - **Chunk Overlap**: 200 characters
+  - **Chunk Size**: 500 characters
+  - **Chunk Overlap**: 50 characters
 - **Embedding Generation**: Each chunk is vectorized using `sentence-transformers/all-MiniLM-L6-v2` via HuggingFace.
 - **FAISS Vector Store**: Embeddings are indexed in FAISS for fast similarity search.
 - **Persistence**: Knowledge base saved to disk and reloaded without re-uploading.
@@ -37,7 +38,7 @@ A student-friendly AI assistant that explains academic examination and evaluatio
 
 | Parameter | Default | Range | Description |
 |-----------|---------|-------|-------------|
-| **Temperature** | 0.3 | 0.0–1.0 | Lower = focused, Higher = creative |
+| **Temperature** | 0.2 | 0.0–1.0 | Lower = focused, Higher = creative |
 | **Top-P** | 0.95 | 0.0–1.0 | Nucleus sampling threshold |
 | **Max Tokens** | 2048 | 256–8192 | Max response length |
 
@@ -50,14 +51,14 @@ A student-friendly AI assistant that explains academic examination and evaluatio
 
 Full Retrieval-Augmented Generation pipeline:
 
-1. **Retrieve**: FAISS similarity search finds top-K relevant chunks (configurable 1–10, default 4)
+1. **Retrieve**: FAISS similarity search finds top-K relevant chunks (configurable 1–10, default 2)
 2. **Augment**: Chunks + system prompt + conversation history + question → structured prompt
 3. **Generate**: Groq LLM generates context-grounded answer
 
 ### 5. Voice I/O
 
 - **Voice Input**: Native Streamlit `st.audio_input` mic recorder → Google Speech Recognition transcription
-- **Voice Output**: gTTS text-to-speech — toggle "Read answers aloud" in sidebar
+- **Voice Output**: `pyttsx3` offline text-to-speech (no internet needed) — toggle "Read answers aloud" in sidebar
 
 ### 6. Academic Safety & Integrity
 
@@ -97,7 +98,7 @@ python -m streamlit run app.py
 - **Vector DB**: FAISS (`faiss-cpu`)
 - **Embeddings**: HuggingFace `all-MiniLM-L6-v2`
 - **Text Splitting**: LangChain `CharacterTextSplitter`
-- **PDF Parsing**: PyPDF2
-- **Voice**: SpeechRecognition + gTTS
+- **PDF Parsing**: PyPDF2 + OCR fallback (`pdf2image` + `pytesseract`)
+- **Voice**: SpeechRecognition + pyttsx3
 - **Web UI**: Streamlit
 - **Environment**: python-dotenv

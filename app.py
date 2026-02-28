@@ -29,6 +29,8 @@ from groq import Groq
 from htmlTemplates import css, bot_template, user_template
 import speech_recognition as sr
 import pyttsx3
+from pdf2image import convert_from_bytes
+import pytesseract
 
 # ============================================================
 # 1. KNOWLEDGE BASE CONFIGURATION
@@ -104,14 +106,38 @@ DEFAULT_MAX_TOKENS = 2048   # Maximum output tokens
 # ============================================================
 
 def get_pdf_text(docs):
-    """Extract text from all uploaded PDF files to build the knowledge base."""
+    """Extract text from all uploaded PDF files. Falls back to OCR for scanned/image PDFs."""
     text = ""
     for pdf in docs:
-        pdf_reader = PdfReader(pdf)
+        pdf_bytes = pdf.read()
+        pdf.seek(0)  # Reset for potential reuse
+
+        # --- Try normal text extraction first ---
+        pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
+        pdf_text = ""
         for page in pdf_reader.pages:
             page_text = page.extract_text()
             if page_text:
-                text += page_text
+                pdf_text += page_text
+
+        # --- Fallback to OCR if text extraction yielded nothing ---
+        if not pdf_text.strip():
+            try:
+                images = convert_from_bytes(pdf_bytes)
+                ocr_text = ""
+                for i, img in enumerate(images):
+                    page_ocr = pytesseract.image_to_string(img)
+                    if page_ocr:
+                        ocr_text += page_ocr + "\n"
+                if ocr_text.strip():
+                    pdf_text = ocr_text
+                    st.info(f"📷 OCR applied to **{pdf.name}** ({len(images)} page(s)) — scanned/image PDF detected.")
+                else:
+                    st.warning(f"⚠️ Could not extract text from **{pdf.name}** (even with OCR).")
+            except Exception as e:
+                st.warning(f"⚠️ OCR failed for **{pdf.name}**: {e}")
+
+        text += pdf_text
     return text
 
 
